@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List App</title>
+</head>
+<body>
+    <h1>To-Do List</h1>
+
+    <div>
+        <input type="text" id="taskInput" placeholder="Enter Task">
+        <button onclick="addTask()">Add Task</button>
+        <button onclick="startConversation()">Add Task (Voice)</button>
+    </div>
+
+    <ul id="taskList">
+        {% for task in tasks %}
+            <li>{{ task.description }} <button onclick="deleteTask({{ task.id }})">Delete</button></li>
+        {% endfor %}
+    </ul>
+
+    <script>
+        function addTask() {
+            const taskInput = document.getElementById('taskInput');
+            const task = taskInput.value.trim();
+
+            if (task !== '') {
+                fetch('/add_task/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: `task=${encodeURIComponent(task)}`,
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.result === 'success') {
+                        taskInput.value = '';
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Error adding task');
+                    }
+                });
+            } else {
+                alert('Please enter a task');
+            }
+        }
+
+        function startConversation() {
+            // Capture user's voice input (replace this with actual voice capture logic)
+            var capturedVoiceInput = "Hello, this is a test";
+
+            // Send the voice input to the backend using a fetch request
+            fetch('/voice_input/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ voiceInput: capturedVoiceInput }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Play the speech response using text-to-speech capabilities
+                playText(data.speechResponse);
+
+                // If you want to add the recognized task to the todo list
+                addTask(data.task);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        function playText(text) {
+            // Implement text-to-speech functionality
+            // (This can be done using a browser API or an external service)
+            // Example using browser API:
+            var synth = window.speechSynthesis;
+            var utterance = new SpeechSynthesisUtterance(text);
+            synth.speak(utterance);
+        }
+
+        function deleteTask(taskId) {
+            if (confirm('Are you sure you want to delete this task?')) {
+                fetch(`/delete_task/${taskId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.result === 'success') {
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Error deleting task');
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>
