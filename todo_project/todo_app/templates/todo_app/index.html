@@ -11,8 +11,12 @@
     <div>
         <input type="text" id="taskInput" placeholder="Enter Task">
         <button onclick="addTask()">Add Task</button>
-        <button onclick="startConversation()">Add Task (Voice)</button>
+        <button id="toggleButton" onclick="startConversation()">Start Listening</button>
+
     </div>
+
+    
+
 
     <ul id="taskList">
         {% for task in tasks %}
@@ -20,7 +24,22 @@
         {% endfor %}
     </ul>
 
+    <div id="loadingIndicator" style="display: none;">Loading...</div>
+
     <script>
+        let isListening = false;
+
+        function startConversation() {
+            if (!isListening) {
+                isListening = true;
+                listen();
+            } else {
+                isListening = false;
+                respond();
+            }
+        }
+
+    
         function addTask() {
             const taskInput = document.getElementById('taskInput');
             const task = taskInput.value.trim();
@@ -29,57 +48,105 @@
                 fetch('/add_task/', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Type': 'application/json',  // Change content type to JSON
                         'X-CSRFToken': '{{ csrf_token }}',
                     },
-                    body: `task=${encodeURIComponent(task)}`,
+                    body: JSON.stringify({ task: task }),  // Send data as JSON
                 })
                 .then(response => response.json())
                 .then(data => {
+                    console.log(data);
                     if (data.result === 'success') {
                         taskInput.value = '';
                         location.reload();
                     } else {
                         alert(data.message || 'Error adding task');
                     }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
                 });
             } else {
                 alert('Please enter a task');
             }
         }
 
-        function startConversation() {
-            // Capture user's voice input (replace this with actual voice capture logic)
-            var capturedVoiceInput = "Hello, this is a test";
 
-            // Send the voice input to the backend using a fetch request
-            fetch('/voice_input/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ voiceInput: capturedVoiceInput }),
-            })
+        function listen() {
+            var recognition = new webkitSpeechRecognition();
+            recognition.onresult = function(event) {
+                var result = event.results[0][0].transcript;
+                console.log('Recognized:', result);
+
+                fetch('/voice_input/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify({ voiceInput: result }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    playText(data.speechResponse);
+                    if (isListening) {
+                        listen();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            };
+
+            recognition.start();
+        }
+
+        function startConversation() {
+            if (!isListening) {
+                isListening = true;
+                document.getElementById('toggleButton').innerText = 'Stop Listening';
+                document.getElementById('loadingIndicator').style.display = 'block';  // Show loading indicator
+                listen();
+            } else {
+                isListening = false;
+                document.getElementById('toggleButton').innerText = 'Start Listening';
+                document.getElementById('loadingIndicator').style.display = 'none';  // Hide loading indicator
+                respond();
+            }
+        }
+
+        
+        function respond() {
+            switchMode();
+        }
+
+        function switchMode() {
+            fetch('/switch_mode/')
             .then(response => response.json())
             .then(data => {
-                // Play the speech response using text-to-speech capabilities
-                playText(data.speechResponse);
-
-                // If you want to add the recognized task to the todo list
-                addTask(data.task);
-            })
-            .catch(error => {
-                console.error('Error:', error);
+                if (data.result === 'success') {
+                    // Switch the UI state or perform any additional logic as needed
+                } else {
+                    console.error('Error switching mode');
+                }
             });
         }
 
         function playText(text) {
-            // Implement text-to-speech functionality
-            // (This can be done using a browser API or an external service)
-            // Example using browser API:
-            var synth = window.speechSynthesis;
-            var utterance = new SpeechSynthesisUtterance(text);
-            synth.speak(utterance);
+            fetch(`/text_to_speech/?text=${encodeURIComponent(text)}`)
+            .then(response => response.arrayBuffer())
+            .then(data => {
+                var audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioContext.decodeAudioData(data, function(buffer) {
+                    var audioBufferSourceNode = audioContext.createBufferSource();
+                    audioBufferSourceNode.buffer = buffer;
+                    audioBufferSourceNode.connect(audioContext.destination);
+                    audioBufferSourceNode.start();
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
         }
 
         function deleteTask(taskId) {

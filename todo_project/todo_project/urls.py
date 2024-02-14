@@ -17,13 +17,12 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from todo_app import views
-from .views import index, converse
+from todo_app.views import index, add_task, delete_task, voice_input, switch_mode
 
 urlpatterns = [
     path('', views.index, name='index'),
     path('add_task/', views.add_task, name='add_task'),
     path('delete_task/<int:task_id>/', views.delete_task, name='delete_task'),
     path('voice_input/', views.voice_input, name='voice_input'),
-    path('', index, name='index'),
-    path('converse/', converse, name='converse'),
+    path('switch_mode/', switch_mode, name='switch_mode'),
 ]
